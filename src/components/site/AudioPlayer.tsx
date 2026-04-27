@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Music2, Pause } from "lucide-react";
+// Locally bundled soft Indian raga loop (drone + sitar-like melody).
+import ragaLoop from "@/assets/audio/raga-loop.mp3";
 
-// Soft Indian classical / sitar background loop (CC0).
-const TRACK_URL =
-  "https://cdn.pixabay.com/download/audio/2022/03/15/audio_8cb749cbf6.mp3?filename=indian-spiritual-meditation-2-118541.mp3";
-const FALLBACK_URL =
-  "https://cdn.pixabay.com/download/audio/2023/06/19/audio_4a16f1c0a4.mp3?filename=indian-sitar-150092.mp3";
+const TRACK_URL = ragaLoop;
+const FALLBACK_URL = ragaLoop;
 
 export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
