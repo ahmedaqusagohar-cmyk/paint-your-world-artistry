@@ -1,72 +1,106 @@
 import { useEffect, useRef, useState } from "react";
 import { Music2, Pause } from "lucide-react";
 
-// Soft Indian-instrumental background loop (CC0 / freely hosted).
+// Soft Indian classical / sitar background loop (CC0).
 const TRACK_URL =
   "https://cdn.pixabay.com/download/audio/2022/03/15/audio_8cb749cbf6.mp3?filename=indian-spiritual-meditation-2-118541.mp3";
+const FALLBACK_URL =
+  "https://cdn.pixabay.com/download/audio/2023/06/19/audio_4a16f1c0a4.mp3?filename=indian-sitar-150092.mp3";
 
 export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [playing, setPlaying] = useState(false);
 
+  // Only render on the client to avoid SSR/hydration mismatch.
   useEffect(() => {
-    const a = new Audio(TRACK_URL);
-    a.loop = true;
-    a.volume = 0.25;
-    a.preload = "auto";
-    audioRef.current = a;
+    setMounted(true);
+  }, []);
 
-    // Try a muted autoplay (browsers allow), then unmute on first user gesture.
-    a.muted = true;
-    a.play()
-      .then(() => setPlaying(true))
-      .catch(() => setPlaying(false));
+  useEffect(() => {
+    if (!mounted) return;
+    const a = audioRef.current;
+    if (!a) return;
+    a.volume = 0.3;
 
-    const unmute = () => {
-      if (!audioRef.current) return;
-      audioRef.current.muted = false;
-      audioRef.current.play().then(() => setPlaying(true)).catch(() => {});
-      window.removeEventListener("pointerdown", unmute);
-      window.removeEventListener("keydown", unmute);
+    const tryPlay = () => {
+      a.play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
     };
-    window.addEventListener("pointerdown", unmute, { once: true });
-    window.addEventListener("keydown", unmute, { once: true });
+
+    const onFirstGesture = () => {
+      a.muted = false;
+      tryPlay();
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+      window.removeEventListener("touchstart", onFirstGesture);
+    };
+
+    // Attempt muted autoplay first (allowed by browsers).
+    a.muted = true;
+    tryPlay();
+
+    window.addEventListener("pointerdown", onFirstGesture, { once: true });
+    window.addEventListener("keydown", onFirstGesture, { once: true });
+    window.addEventListener("touchstart", onFirstGesture, { once: true });
 
     return () => {
-      a.pause();
-      audioRef.current = null;
-      window.removeEventListener("pointerdown", unmute);
-      window.removeEventListener("keydown", unmute);
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+      window.removeEventListener("touchstart", onFirstGesture);
     };
-  }, []);
+  }, [mounted]);
 
   const toggle = () => {
     const a = audioRef.current;
     if (!a) return;
-    if (a.paused) {
+    if (a.paused || a.muted) {
       a.muted = false;
-      a.play().then(() => setPlaying(true)).catch(() => {});
+      a.play().then(() => setPlaying(true)).catch((e) => console.warn("Audio play failed:", e));
     } else {
       a.pause();
       setPlaying(false);
     }
   };
 
+  const onError = () => {
+    const a = audioRef.current;
+    if (a && a.src !== FALLBACK_URL) {
+      a.src = FALLBACK_URL;
+      a.load();
+      a.play().then(() => setPlaying(true)).catch(() => {});
+    }
+  };
+
+  if (!mounted) return null;
+
   return (
-    <button
-      onClick={toggle}
-      aria-label={playing ? "Pause music" : "Play music"}
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-[var(--gradient-warm)] px-4 py-3 text-primary-foreground shadow-[var(--shadow-warm)] transition-transform hover:scale-105"
-    >
-      <span className="relative grid h-5 w-5 place-items-center">
-        {playing ? <Pause size={16} /> : <Music2 size={16} />}
-        {playing && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/40" />
-        )}
-      </span>
-      <span className="text-xs font-medium tracking-wide">
-        {playing ? "Playing raga" : "Play raga"}
-      </span>
-    </button>
+    <>
+      <audio
+        ref={audioRef}
+        src={TRACK_URL}
+        loop
+        preload="auto"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onError={onError}
+      />
+      <button
+        onClick={toggle}
+        aria-label={playing ? "Pause music" : "Play music"}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-[var(--gradient-warm)] px-4 py-3 text-primary-foreground shadow-[var(--shadow-warm)] transition-transform hover:scale-105"
+      >
+        <span className="relative grid h-5 w-5 place-items-center">
+          {playing ? <Pause size={16} /> : <Music2 size={16} />}
+          {playing && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/40" />
+          )}
+        </span>
+        <span className="text-xs font-medium tracking-wide">
+          {playing ? "Playing raga" : "Play raga"}
+        </span>
+      </button>
+    </>
   );
 }
